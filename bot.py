@@ -1,68 +1,62 @@
-import os
+import os, subprocess
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
-from pydub import AudioSegment
 import librosa
 import soundfile as sf
 
-TOKEN = os.environ.get("BOT_TOKEN")
+TOKEN = "8633336282:AAFMyvBtppuz--k7rfzz7DJdu2g5e9jz7sE"
 
 VOICES = {
-    "girl_hindi_soft": {"pitch": 4, "speed": 0.98, "label": "🇮🇳 Hindi Girl Soft"},
-    "girl_hinglish_cute": {"pitch": 6, "speed": 1.0, "label": "🥰 Cute Hinglish Girl"},
+    "girl_soft": {"pitch": 4, "speed": 0.98, "label": "🇮🇳 Hindi Girl Soft"},
+    "girl_cute": {"pitch": 6, "speed": 1.0, "label": "🥰 Cute Hinglish Girl"},
     "girl_baddie": {"pitch": 3.5, "speed": 1.05, "label": "😈 Baddie Girl"},
-    "girl_punjabi": {"pitch": 4.5, "speed": 1.0, "label": "💃 Punjabi Girl"},
-    "girl_tamil": {"pitch": 5, "speed": 0.97, "label": "🌸 Tamil Girl"},
-    "girl_bengali": {"pitch": 4, "speed": 0.98, "label": "✨ Bengali Girl"},
     "boy_hindi": {"pitch": -2, "speed": 1.0, "label": "👦 Hindi Boy"},
-    "boy_deep": {"pitch": -5, "speed": 0.95, "label": "🎙️ Deep Boy"},
-    "chipmunk": {"pitch": 8, "speed": 1.1, "label": "🐹 Funny"},
+    "boy_deep": {"pitch": -5, "speed": 0.95, "label": "🎙️ Deep Boy Voice"},
 }
 
-def change_voice_pro(i,o,p,s):
-    y,sr=librosa.load(i,sr=16000)
-    y=librosa.effects.pitch_shift(y,sr=sr,n_steps=p)
-    y=librosa.effects.time_stretch(y,rate=s)
-    sf.write(o,y,sr)
+def run(cmd):
+    subprocess.run(cmd, shell=True)
 
-def get_keyboard():
-    btns=[]
-    items=list(VOICES.items())
-    for x in range(0,len(items),2):
-        row=[]
-        for y in range(2):
-            if x+y < len(items):
-                k,v=items[x+y]
-                row.append(InlineKeyboardButton(v["label"],callback_data=k))
-        btns.append(row)
-    return InlineKeyboardMarkup(btns)
+def change_voice(input_path, output_path, pitch, speed):
+    y, sr = librosa.load(input_path, sr=16000)
+    y = librosa.effects.pitch_shift(y, sr=sr, n_steps=pitch)
+    y = librosa.effects.time_stretch(y, rate=speed)
+    sf.write(output_path, y, sr)
+
+def get_kb():
+    buttons = []
+    for key, data in VOICES.items():
+        buttons.append([InlineKeyboardButton(data["label"], callback_data=key)])
+    return InlineKeyboardMarkup(buttons)
 
 async def start(update, context):
-    context.user_data["voice"]="girl_hinglish_cute"
-    await update.message.reply_text("🎤 Voice Changer Ready!\n1. Choose voice\n2. Send voice message", reply_markup=get_keyboard())
+    context.user_data["voice"] = "girl_cute"
+    await update.message.reply_text("🎤 Bot Ready! Choose your voice then send a voice note:", reply_markup=get_kb())
 
-async def button_click(update, context):
-    q=update.callback_query; await q.answer()
-    context.user_data["voice"]=q.data
-    await q.edit_message_text(f"✅ {VOICES[q.data]['label']} selected! Send voice now.", reply_markup=get_keyboard())
+async def button(update, context):
+    query = update.callback_query
+    await query.answer()
+    context.user_data["voice"] = query.data
+    await query.edit_message_text(f"✅ {VOICES[query.data]['label']} selected! Now send your voice note.", reply_markup=get_kb())
 
 async def handle_voice(update, context):
-    cfg=VOICES[context.user_data.get("voice","girl_hinglish_cute")]
+    voice_key = context.user_data.get("voice", "girl_cute")
+    cfg = VOICES[voice_key]
     await update.message.reply_text(f"⏳ Changing to {cfg['label']}...")
-    f=await update.message.voice.get_file()
-    await f.download_to_drive("input.ogg")
-    AudioSegment.from_ogg("input.ogg").export("input.wav",format="wav")
-    change_voice_pro("input.wav","output.wav",cfg["pitch"],cfg["speed"])
-    AudioSegment.from_wav("output.wav").export("output.ogg",format="ogg",codec="libopus")
-    await update.message.reply_voice(voice=open("output.ogg","rb"), caption=f"Done: {cfg['label']}")
-    for file in ["input.ogg","input.wav","output.wav","output.ogg"]:
-        if os.path.exists(file): os.remove(file)
+    file = await update.message.voice.get_file()
+    await file.download_to_drive("input.ogg")
+    run("ffmpeg -y -i input.ogg -ar 16000 input.wav")
+    change_voice("input.wav", "output.wav", cfg["pitch"], cfg["speed"])
+    run("ffmpeg -y -i output.wav -c:a libopus output.ogg")
+    await update.message.reply_voice(voice=open("output.ogg", "rb"), caption=f"Done: {cfg['label']}")
+    for f in ["input.ogg", "input.wav", "output.wav", "output.ogg"]:
+        if os.path.exists(f):
+            os.remove(f)
 
 if __name__ == "__main__":
-    app=ApplicationBuilder().token(TOKEN).build()
+    app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("voices", start))
-    app.add_handler(CallbackQueryHandler(button_click))
+    app.add_handler(CallbackQueryHandler(button))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.AUDIO, handle_voice))
     app.run_polling()
