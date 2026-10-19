@@ -1,5 +1,7 @@
 python-telegram-bot==20.7
-pydub
-librosa
-soundfile
-numpy
+pydub==0.25.1
+pyaudioop
+librosa==0.10.1
+soundfile==0.12.1
+numpy==1.26.4
+ffmpeg-python
