@@ -2,7 +2,7 @@ import os, subprocess, traceback, requests
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 
-TOKEN = "8633336282:AAFMyvBtppuz--k7rfzz7DJdu2g5e9jz7sE"
+TOKEN = "8633336282:AAHBbKdkibjbOTjT7VX00lwczDolINiqpME"
 
 MODEL_FILE = "girl.pth"
 # Working Hindi Girl RVC model - auto download
